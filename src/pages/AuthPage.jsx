@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { authService } from '../services/api';
 import './AuthPage.css';
 
 const AuthPage = ({ onLogin }) => {
@@ -7,15 +8,31 @@ const AuthPage = ({ onLogin }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Simulate login
-    onLogin({
-      name: isLogin ? (email.split('@')[0] || 'Reader') : name,
-      email: email,
-      joinedDate: 'June 2026'
-    });
+    setError('');
+    setIsLoading(true);
+    try {
+      if (isLogin) {
+        await authService.login(email, password);
+        const userProfile = await authService.me();
+        onLogin(userProfile);
+      } else {
+        await authService.signup(name, email, password);
+        // Automatically login after signup
+        await authService.login(email, password);
+        const userProfile = await authService.me();
+        onLogin(userProfile);
+      }
+    } catch (err) {
+      console.error("Auth error:", err);
+      setError(err.response?.data?.message || 'Authentication failed. Please verify your credentials.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -99,8 +116,14 @@ const AuthPage = ({ onLogin }) => {
               />
             </div>
 
-            <button type="submit" className="btn-primary auth-submit-btn">
-              {isLogin ? 'Access Shelf' : 'Create Library'}
+            {error && (
+              <div className="auth-error-message" style={{ color: '#c94a29', fontSize: '0.9rem', marginBottom: '1rem', borderLeft: '2px solid #c94a29', paddingLeft: '0.75rem', fontFamily: 'var(--font-serif)' }}>
+                {error}
+              </div>
+            )}
+
+            <button type="submit" className="btn-primary auth-submit-btn" disabled={isLoading}>
+              {isLoading ? (isLogin ? 'Verifying...' : 'Creating...') : (isLogin ? 'Access Shelf' : 'Create Library')}
             </button>
           </form>
 

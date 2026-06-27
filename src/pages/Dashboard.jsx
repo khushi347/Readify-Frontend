@@ -1,23 +1,55 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BookOpen, Book, BarChart2, Star, Sparkles, Plus, CheckCircle, ChevronLeft, ChevronRight, PenTool } from 'lucide-react';
 import Book3D from '../components/Book3D';
+import { reflectionsService } from '../services/api';
 import './Dashboard.css';
 
-const Dashboard = ({ user, books, onUpdateBookProgress, onSaveHighlight, goals = { read: 3, target: 10 } }) => {
+const Dashboard = ({ user, books, onUpdateBookProgress, onSaveHighlight, goals = { read: 3, target: 10 }, onUpdateYearlyGoal }) => {
   const [sanctuaryMode, setSanctuaryMode] = useState(false);
   const [activeHighlightIndex, setActiveHighlightIndex] = useState(0);
   const [newNote, setNewNote] = useState('');
-  const [journalBookId, setJournalBookId] = useState(books[0]?.id || '');
+  const [journalBookId, setJournalBookId] = useState('');
   const [journalConfirm, setJournalConfirm] = useState(false);
+  const [reflections, setReflections] = useState([]);
+
+  // Sync journalBookId when books list loads
+  useEffect(() => {
+    if (books.length > 0 && !journalBookId) {
+      const active = books.filter(b => b.category === 'currently-reading');
+      if (active.length > 0) {
+        setJournalBookId(active[0].id);
+      } else {
+        setJournalBookId(books[0].id);
+      }
+    }
+  }, [books, journalBookId]);
+
+  // Load reflections on mount/update
+  useEffect(() => {
+    const fetchReflections = async () => {
+      try {
+        const data = await reflectionsService.getAllReflections();
+        setReflections(data);
+      } catch (err) {
+        console.error("Failed to load reflections:", err);
+      }
+    };
+    if (user) {
+      fetchReflections();
+    }
+  }, [user, books]);
 
   const activeBooks = books.filter(b => b.category === 'currently-reading');
   const completedBooks = books.filter(b => b.category === 'completed');
   
-  // Flatten highlights from currently reading books
-  const allHighlights = books.flatMap(b => 
-    b.highlights.map(h => ({ ...h, bookTitle: b.title, bookAuthor: b.author }))
-  ).sort((a, b) => new Date(b.date) - new Date(a.date));
+  // Format reflections to highlights structure expected by UI
+  const allHighlights = reflections.map(r => ({
+    text: r.content,
+    date: r.createdAt,
+    bookTitle: r.book?.title || 'Unknown Title',
+    bookAuthor: r.book?.authors ? r.book.authors.join(', ') : 'Unknown Author'
+  }));
 
   // Calculate favorite genre based on books in library
   const getFavoriteGenre = () => {
@@ -56,14 +88,22 @@ const Dashboard = ({ user, books, onUpdateBookProgress, onSaveHighlight, goals =
     }
   };
 
-  const handleSaveNote = (e) => {
+  const handleSaveNote = async (e) => {
     e.preventDefault();
-    if (!newNote.trim()) return;
+    if (!newNote.trim() || !journalBookId) return;
 
-    onSaveHighlight(parseInt(journalBookId), newNote);
+    await onSaveHighlight(journalBookId, newNote);
     setNewNote('');
     setJournalConfirm(true);
     setTimeout(() => setJournalConfirm(false), 3000);
+    
+    // Refresh reflections list
+    try {
+      const data = await reflectionsService.getAllReflections();
+      setReflections(data);
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const nextHighlight = () => {
@@ -111,8 +151,22 @@ const Dashboard = ({ user, books, onUpdateBookProgress, onSaveHighlight, goals =
               
               {/* Yearly Goals Card */}
               <div className="db-card goal-card">
-                <div className="db-card-header">
-                  <h3>Yearly Reading Progress</h3>
+                <div className="db-card-header" style={{ position: 'relative' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <h3>Yearly Reading Progress</h3>
+                    <button 
+                      onClick={() => {
+                        const newGoal = prompt("Enter your new yearly reading goal:", goals.target);
+                        if (newGoal && !isNaN(newGoal)) {
+                          onUpdateYearlyGoal(parseInt(newGoal));
+                        }
+                      }}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-gold)', display: 'flex', padding: 0 }}
+                      title="Edit Yearly Goal"
+                    >
+                      <PenTool size={14} />
+                    </button>
+                  </div>
                   <span className="badge">{goals.read} / {goals.target} Books</span>
                 </div>
                 <div className="goal-track-container">

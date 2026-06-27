@@ -2,12 +2,14 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Star, X, Edit, MessageSquare, Tag, Check, Award } from 'lucide-react';
 import Book3D from '../components/Book3D';
+import { reflectionsService } from '../services/api';
 import './Bookshelf.css';
 
-const Bookshelf = ({ books, onUpdateBookProgress, onUpdateBookStatus, onUpdateBookRating }) => {
+const Bookshelf = ({ books, onUpdateBookProgress, onUpdateBookStatus, onUpdateBookRating, onDeleteBook }) => {
   const [selectedBook, setSelectedBook] = useState(null);
   const [editProgress, setEditProgress] = useState(false);
   const [newPageProgress, setNewPageProgress] = useState('');
+  const [bookReflections, setBookReflections] = useState([]);
 
   const shelves = [
     { id: 'currently-reading', name: 'Currently Reading' },
@@ -15,10 +17,20 @@ const Bookshelf = ({ books, onUpdateBookProgress, onUpdateBookStatus, onUpdateBo
     { id: 'completed', name: 'Completed' }
   ];
 
-  const handleBookClick = (book) => {
+  const handleBookClick = async (book) => {
     setSelectedBook(book);
-    setNewPageProgress(book.pagesRead.toString());
+    setNewPageProgress(book.totalPages ? book.pagesRead.toString() : book.progress.toString());
     setEditProgress(false);
+    setBookReflections([]);
+    try {
+      const data = await reflectionsService.getReflectionsForBook(book.id);
+      setBookReflections(data.map(r => ({
+        text: r.content,
+        date: r.createdAt
+      })));
+    } catch (err) {
+      console.error("Failed to load reflections:", err);
+    }
   };
 
   const handleClose = () => {
@@ -27,16 +39,25 @@ const Bookshelf = ({ books, onUpdateBookProgress, onUpdateBookStatus, onUpdateBo
 
   const handleProgressSubmit = (e) => {
     e.preventDefault();
-    const pages = parseInt(newPageProgress);
-    if (isNaN(pages) || pages < 0 || pages > selectedBook.totalPages) return;
+    const val = parseInt(newPageProgress);
+    if (isNaN(val) || val < 0) return;
     
-    onUpdateBookProgress(selectedBook.id, pages);
-    // Update local state to show correct value
-    setSelectedBook({
-      ...selectedBook,
-      pagesRead: pages,
-      progress: Math.round((pages / selectedBook.totalPages) * 100)
-    });
+    if (selectedBook.totalPages) {
+      if (val > selectedBook.totalPages) return;
+      onUpdateBookProgress(selectedBook.id, val);
+      setSelectedBook({
+        ...selectedBook,
+        pagesRead: val,
+        progress: Math.min(100, Math.round((val / selectedBook.totalPages) * 100))
+      });
+    } else {
+      if (val > 100) return;
+      onUpdateBookProgress(selectedBook.id, val);
+      setSelectedBook({
+        ...selectedBook,
+        progress: val
+      });
+    }
     setEditProgress(false);
   };
 
@@ -201,7 +222,11 @@ const Bookshelf = ({ books, onUpdateBookProgress, onUpdateBookStatus, onUpdateBo
                     <div className="drawer-progress-logger-box">
                       <div className="logger-stats">
                         <div className="logger-percent">{selectedBook.progress}% Read</div>
-                        <div className="logger-pages">{selectedBook.pagesRead} of {selectedBook.totalPages} pages</div>
+                        {selectedBook.totalPages ? (
+                          <div className="logger-pages">{selectedBook.pagesRead} of {selectedBook.totalPages} pages</div>
+                        ) : (
+                          <div className="logger-pages">Pages details unavailable</div>
+                        )}
                       </div>
                       <div className="logger-bar">
                         <div className="logger-bar-fill" style={{ width: `${selectedBook.progress}%` }} />
@@ -214,7 +239,7 @@ const Bookshelf = ({ books, onUpdateBookProgress, onUpdateBookStatus, onUpdateBo
                             className="progress-edit-input"
                             value={newPageProgress}
                             onChange={(e) => setNewPageProgress(e.target.value)}
-                            max={selectedBook.totalPages}
+                            max={selectedBook.totalPages || 100}
                             min="0"
                             required
                           />
@@ -234,8 +259,8 @@ const Bookshelf = ({ books, onUpdateBookProgress, onUpdateBookStatus, onUpdateBo
                   <div className="drawer-section">
                     <h4 className="drawer-sec-title">Logged Reflections</h4>
                     <div className="drawer-highlights-list">
-                      {selectedBook.highlights && selectedBook.highlights.length > 0 ? (
-                        selectedBook.highlights.map((h, i) => (
+                      {bookReflections && bookReflections.length > 0 ? (
+                        bookReflections.map((h, i) => (
                           <div key={i} className="drawer-highlight-item">
                             <p>“{h.text}”</p>
                             <span className="date">{new Date(h.date).toLocaleDateString()}</span>
@@ -245,6 +270,34 @@ const Bookshelf = ({ books, onUpdateBookProgress, onUpdateBookStatus, onUpdateBo
                         <p className="no-highlights-text">No highlights registered. Open Sanctuary mode on the dashboard to scribble reflections.</p>
                       )}
                     </div>
+                  </div>
+
+                  {/* Remove from Shelf button */}
+                  <div className="drawer-section" style={{ marginTop: '2rem' }}>
+                    <button 
+                      onClick={() => {
+                        if (window.confirm(`Are you sure you want to remove "${selectedBook.title}" from your library?`)) {
+                          onDeleteBook(selectedBook.id);
+                          handleClose();
+                        }
+                      }}
+                      className="btn-danger" 
+                      style={{ 
+                        width: '100%', 
+                        background: 'none', 
+                        border: '1px solid #c94a29', 
+                        color: '#c94a29', 
+                        padding: '0.75rem', 
+                        fontFamily: 'var(--font-serif)', 
+                        cursor: 'pointer',
+                        borderRadius: '4px',
+                        transition: 'all 0.2s'
+                      }}
+                      onMouseOver={(e) => { e.target.style.backgroundColor = '#c94a29'; e.target.style.color = '#fff'; }}
+                      onMouseOut={(e) => { e.target.style.backgroundColor = 'transparent'; e.target.style.color = '#c94a29'; }}
+                    >
+                      Remove from Library
+                    </button>
                   </div>
 
                 </div>

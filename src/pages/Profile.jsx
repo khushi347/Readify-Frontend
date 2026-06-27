@@ -1,14 +1,29 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Award, Calendar, BookOpen, Clock, PenTool } from 'lucide-react';
+import { reflectionsService } from '../services/api';
 import './Profile.css';
 
 const Profile = ({ user, books }) => {
+  const [reflections, setReflections] = useState([]);
+
+  useEffect(() => {
+    const loadReflections = async () => {
+      try {
+        const data = await reflectionsService.getAllReflections();
+        setReflections(data);
+      } catch (err) {
+        console.error("Failed to load reflections in Profile:", err);
+      }
+    };
+    loadReflections();
+  }, [books]);
+
   const completedBooks = books.filter(b => b.category === 'completed');
   const currentlyReading = books.filter(b => b.category === 'currently-reading');
   const toRead = books.filter(b => b.category === 'to-read');
   
   const totalPagesRead = books.reduce((sum, b) => sum + b.pagesRead, 0);
-  const totalHighlights = books.reduce((sum, b) => sum + b.highlights.length, 0);
+  const totalHighlights = reflections.length;
 
   // Define Achievements Stamps
   const badges = [
@@ -32,36 +47,36 @@ const Profile = ({ user, books }) => {
     }
   ];
 
-  // Dynamic timeline items from books
+  // Dynamic timeline items from books & reflections
   const timelineEvents = [];
   
   books.forEach(book => {
     // Finished event
     if (book.category === 'completed') {
       timelineEvents.push({
-        date: new Date('2026-06-25'), // Mock past dates
+        date: book.updatedAt ? new Date(book.updatedAt) : new Date(),
         type: 'completion',
         title: `Completed ${book.title}`,
         desc: `Logged 100% completion (rating: ${book.rating} stars).`
       });
     }
 
-    // Highlights event
-    book.highlights.forEach(h => {
-      timelineEvents.push({
-        date: new Date(h.date),
-        type: 'highlight',
-        title: `Captured snippet in ${book.title}`,
-        desc: `“${h.text}”`
-      });
-    });
-
     // Added event
     timelineEvents.push({
-      date: new Date('2026-06-01'),
+      date: book.createdAt ? new Date(book.createdAt) : new Date(),
       type: 'addition',
       title: `Placed ${book.title} on Shelf`,
       desc: `Registered as '${book.category.replace('-', ' ')}'.`
+    });
+  });
+
+  // Highlights event from reflections
+  reflections.forEach(h => {
+    timelineEvents.push({
+      date: new Date(h.createdAt),
+      type: 'highlight',
+      title: `Captured snippet in ${h.book?.title || 'Unknown Title'}`,
+      desc: `“${h.content}”`
     });
   });
 

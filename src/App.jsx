@@ -13,194 +13,254 @@ import Search from './pages/Search';
 import Recommendations from './pages/Recommendations';
 import Profile from './pages/Profile';
 
-// Initial Curated Library Database
-const INITIAL_BOOKS = [
-  {
-    id: 1,
-    title: "The Midnight Library",
-    author: "Matt Haig",
-    coverColor: "linear-gradient(135deg, #101c38 0%, #1e3c72 100%)",
-    category: "currently-reading",
-    genre: "Fiction",
-    progress: 64,
-    pagesRead: 195,
-    totalPages: 304,
-    rating: 4,
-    synopsis: "Between life and death there is a library, and within that library, the shelves go on forever. Every book provides a chance to try another life you could have lived.",
-    highlights: [
-      { text: "It is easy to mourn the lives we aren't living.", date: "2026-06-25T12:00:00Z" },
-      { text: "You don't have to understand life, you just have to live it.", date: "2026-06-26T15:30:00Z" }
-    ]
-  },
-  {
-    id: 2,
-    title: "Dune",
-    author: "Frank Herbert",
-    coverColor: "linear-gradient(135deg, #a86b32 0%, #6e401c 100%)",
-    category: "currently-reading",
-    genre: "Sci-Fi",
-    progress: 28,
-    pagesRead: 172,
-    totalPages: 617,
-    rating: 5,
-    synopsis: "Set on the desert planet Arrakis, Dune is the story of the boy Paul Atreides, who would become the Messiah of a hostile world.",
-    highlights: [
-      { text: "Fear is the mind-killer.", date: "2026-06-24T09:15:00Z" }
-    ]
-  },
-  {
-    id: 3,
-    title: "Klara and the Sun",
-    author: "Kazuo Ishiguro",
-    coverColor: "linear-gradient(135deg, #e4a853 0%, #b85c38 100%)",
-    category: "to-read",
-    genre: "Sci-Fi",
-    progress: 0,
-    pagesRead: 0,
-    totalPages: 320,
-    rating: 0,
-    synopsis: "Klara, an Artificial Friend with outstanding observational qualities, watches the behavior of those who come in to browse.",
-    highlights: []
-  },
-  {
-    id: 4,
-    title: "Sapiens",
-    author: "Yuval Noah Harari",
-    coverColor: "linear-gradient(135deg, #4b5320 0%, #2e3b1c 100%)",
-    category: "completed",
-    genre: "Non-Fiction",
-    progress: 100,
-    pagesRead: 512,
-    totalPages: 512,
-    rating: 5,
-    synopsis: "Harari spans the whole of human history, from the very first humans to walk the earth to the radical breakthroughs of the Cognitive, Agricultural, and Scientific Revolutions.",
-    highlights: [
-      { text: "History is something that very few people have been doing while everyone else was ploughing fields and carrying water buckets.", date: "2026-06-10T11:20:00Z" }
-    ]
-  },
-  {
-    id: 5,
-    title: "The Great Gatsby",
-    author: "F. Scott Fitzgerald",
-    coverColor: "linear-gradient(135deg, #112d32 0%, #254b50 100%)",
-    category: "completed",
-    genre: "Classics",
-    progress: 100,
-    pagesRead: 180,
-    totalPages: 180,
-    rating: 4,
-    synopsis: "A portrait of the Jazz Age, following Jay Gatsby's obsessive pursuit of his former lover, Daisy Buchanan.",
-    highlights: [
-      { text: "So we beat on, boats against the current, borne back ceaselessly into the past.", date: "2026-06-15T18:45:00Z" }
-    ]
-  }
-];
+// Import API Services
+import {
+  authService,
+  shelfService,
+  dashboardService,
+  reflectionsService,
+  mapStatusToFrontend,
+  mapStatusToBackend,
+  getBookCoverColor
+} from './services/api';
 
 function App() {
   const [view, setView] = useState('landing'); // landing, auth, dashboard, bookshelf, search, recommendations, profile
   const [user, setUser] = useState(null);
-  const [books, setBooks] = useState(INITIAL_BOOKS);
+  const [books, setBooks] = useState([]);
+  const [dashboardSummary, setDashboardSummary] = useState(null);
   const [sanctuaryMode, setSanctuaryMode] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Helper to format backend book object
+  const formatBackendBook = (b) => {
+    const totalPages = b.totalPages || null;
+    const progress = b.progress || 0;
+    return {
+      id: b._id,
+      bookId: b.bookId,
+      title: b.title,
+      author: b.authors ? b.authors.join(', ') : 'Unknown Author',
+      coverColor: b.coverColor || getBookCoverColor(b.title),
+      category: mapStatusToFrontend(b.status),
+      genre: b.genre || 'Unknown',
+      progress: progress,
+      totalPages: totalPages,
+      pagesRead: totalPages ? Math.round((progress / 100) * totalPages) : 0,
+      rating: b.rating || 0,
+      review: b.review || '',
+      synopsis: b.synopsis || 'No synopsis available.',
+      highlights: [],
+      createdAt: b.createdAt,
+      updatedAt: b.updatedAt
+    };
+  };
 
   // Sync Sanctuary Focus mode state from dashboard to App root class
   useEffect(() => {
-    // Check if the current view is dashboard, otherwise clean up classes
     if (view !== 'dashboard') {
       document.body.classList.remove('sanctuary-dark');
       setSanctuaryMode(false);
     }
-    // Close mobile menu when view changes
     setIsMobileMenuOpen(false);
   }, [view]);
 
-  // Log progress updates
-  const handleUpdateBookProgress = (bookId, pagesRead) => {
-    setBooks(prevBooks => 
-      prevBooks.map(book => {
-        if (book.id === bookId) {
-          const progress = Math.min(100, Math.round((pagesRead / book.totalPages) * 100));
-          const updatedCategory = progress === 100 ? 'completed' : book.category;
-          return {
-            ...book,
-            pagesRead,
-            progress,
-            category: updatedCategory
-          };
+  // Auth initialization check on mount
+  useEffect(() => {
+    const initAuth = async () => {
+      const token = localStorage.getItem('readify_token');
+      if (token) {
+        try {
+          setIsLoading(true);
+          const userData = await authService.me();
+          setUser(userData);
+          // Load shelf and summary data
+          const shelfBooks = await shelfService.getBooks();
+          setBooks(shelfBooks.map(formatBackendBook));
+          const summary = await dashboardService.getSummary();
+          setDashboardSummary(summary);
+          setView('dashboard');
+        } catch (err) {
+          console.error("Token verification failed:", err);
+          authService.logout();
+          setUser(null);
+          setView('landing');
+        } finally {
+          setIsLoading(false);
         }
-        return book;
-      })
-    );
+      }
+    };
+    initAuth();
+
+    // Listen to global unauthorized event
+    const handleUnauthorized = () => {
+      setUser(null);
+      setBooks([]);
+      setDashboardSummary(null);
+      setView('landing');
+    };
+
+    window.addEventListener('auth-unauthorized', handleUnauthorized);
+    return () => {
+      window.removeEventListener('auth-unauthorized', handleUnauthorized);
+    };
+  }, []);
+
+  // Fetch everything for logged-in user
+  const fetchLibraryData = async () => {
+    try {
+      setIsLoading(true);
+      const shelfBooks = await shelfService.getBooks();
+      setBooks(shelfBooks.map(formatBackendBook));
+      const summary = await dashboardService.getSummary();
+      setDashboardSummary(summary);
+    } catch (err) {
+      console.error("Failed to load library data:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Log progress updates
+  const handleUpdateBookProgress = async (bookId, pagesReadOrProgress) => {
+    try {
+      const book = books.find(b => b.id === bookId);
+      if (!book) return;
+      
+      let progress;
+      if (book.totalPages) {
+        progress = Math.min(100, Math.round((pagesReadOrProgress / book.totalPages) * 100));
+      } else {
+        progress = Math.min(100, pagesReadOrProgress);
+      }
+
+      const updated = await shelfService.updateBook(bookId, { progress });
+      setBooks(prevBooks =>
+        prevBooks.map(b => b.id === bookId ? {
+          ...b,
+          progress: updated.progress,
+          pagesRead: b.totalPages ? Math.round((updated.progress / 100) * b.totalPages) : 0,
+          category: mapStatusToFrontend(updated.status)
+        } : b)
+      );
+
+      // Refresh dashboard summary
+      const summary = await dashboardService.getSummary();
+      setDashboardSummary(summary);
+    } catch (err) {
+      console.error("Failed to update progress:", err);
+    }
   };
 
   // Log shelf moves
-  const handleUpdateBookStatus = (bookId, status) => {
-    setBooks(prevBooks => 
-      prevBooks.map(book => {
-        if (book.id === bookId) {
-          return {
-            ...book,
-            category: status,
-            // If completed, set progress to 100%
-            progress: status === 'completed' ? 100 : status === 'to-read' ? 0 : book.progress,
-            pagesRead: status === 'completed' ? book.totalPages : status === 'to-read' ? 0 : book.pagesRead
-          };
-        }
-        return book;
-      })
-    );
+  const handleUpdateBookStatus = async (bookId, status) => {
+    try {
+      const backendStatus = mapStatusToBackend(status);
+      const updated = await shelfService.updateBook(bookId, { status: backendStatus });
+      setBooks(prevBooks =>
+        prevBooks.map(b => b.id === bookId ? {
+          ...b,
+          category: mapStatusToFrontend(updated.status),
+          progress: updated.progress,
+          pagesRead: b.totalPages ? Math.round((updated.progress / 100) * b.totalPages) : 0
+        } : b)
+      );
+
+      // Refresh dashboard summary
+      const summary = await dashboardService.getSummary();
+      setDashboardSummary(summary);
+    } catch (err) {
+      console.error("Failed to update status:", err);
+    }
   };
 
   // Log star ratings
-  const handleUpdateBookRating = (bookId, rating) => {
-    setBooks(prevBooks => 
-      prevBooks.map(book => {
-        if (book.id === bookId) {
-          return { ...book, rating };
-        }
-        return book;
-      })
-    );
+  const handleUpdateBookRating = async (bookId, rating) => {
+    try {
+      const updated = await shelfService.updateBook(bookId, { rating });
+      setBooks(prevBooks =>
+        prevBooks.map(b => b.id === bookId ? { ...b, rating: updated.rating } : b)
+      );
+    } catch (err) {
+      console.error("Failed to update rating:", err);
+    }
   };
 
-  // Log highlights
-  const handleSaveHighlight = (bookId, highlightText) => {
-    setBooks(prevBooks => 
-      prevBooks.map(book => {
-        if (book.id === bookId) {
-          return {
-            ...book,
-            highlights: [
-              ...book.highlights,
-              { text: highlightText, date: new Date().toISOString() }
-            ]
-          };
-        }
-        return book;
-      })
-    );
+  // Log highlights (Reflections)
+  const handleSaveHighlight = async (bookId, highlightText) => {
+    try {
+      await reflectionsService.addReflection(bookId, highlightText);
+      // reflections are managed independently
+    } catch (err) {
+      console.error("Failed to save reflection:", err);
+    }
   };
 
   // Add search book to library
-  const handleAddBookToLibrary = (newBook) => {
-    setBooks(prevBooks => [...prevBooks, newBook]);
+  const handleAddBookToLibrary = async (newBook) => {
+    try {
+      const bookData = {
+        bookId: newBook.bookId || String(newBook.id),
+        title: newBook.title,
+        authors: Array.isArray(newBook.authors) ? newBook.authors : [newBook.author],
+        thumbnail: newBook.thumbnail || '',
+        genre: newBook.genre || 'Unknown',
+        totalPages: newBook.totalPages || null,
+        status: 'want_to_read',
+        progress: 0
+      };
+      const added = await shelfService.addBook(bookData);
+      setBooks(prevBooks => [...prevBooks, formatBackendBook(added)]);
+
+      // Refresh summary
+      const summary = await dashboardService.getSummary();
+      setDashboardSummary(summary);
+    } catch (err) {
+      console.error("Failed to add book to library:", err);
+    }
   };
 
-  const handleLogin = (userData) => {
+  const handleDeleteBook = async (bookId) => {
+    try {
+      await shelfService.deleteBook(bookId);
+      setBooks(prevBooks => prevBooks.filter(b => b.id !== bookId));
+      const summary = await dashboardService.getSummary();
+      setDashboardSummary(summary);
+    } catch (err) {
+      console.error("Failed to delete book:", err);
+    }
+  };
+
+  const handleUpdateYearlyGoal = async (goalValue) => {
+    try {
+      await dashboardService.updateGoal(goalValue);
+      const summary = await dashboardService.getSummary();
+      setDashboardSummary(summary);
+    } catch (err) {
+      console.error("Failed to update yearly goal:", err);
+    }
+  };
+
+  const handleLogin = async (userData) => {
     setUser(userData);
+    await fetchLibraryData();
     setView('dashboard');
   };
 
   const handleLogout = () => {
+    authService.logout();
     setUser(null);
+    setBooks([]);
+    setDashboardSummary(null);
     setView('landing');
   };
 
-  // Calculate dynamic goals progress
+  // Calculate dynamic goals progress using backend summary values
   const completedCount = books.filter(b => b.category === 'completed').length;
   const yearlyGoalData = {
-    read: completedCount,
-    target: 8
+    read: dashboardSummary?.yearlyReadingGoal?.completed ?? completedCount,
+    target: dashboardSummary?.yearlyReadingGoal?.goal ?? 20
   };
 
   const handleSanctuaryToggleFromDashboard = (isFocused) => {
@@ -407,6 +467,7 @@ function App() {
               onUpdateBookProgress={handleUpdateBookProgress}
               onSaveHighlight={handleSaveHighlight}
               goals={yearlyGoalData}
+              onUpdateYearlyGoal={handleUpdateYearlyGoal}
             />
           </PageTransition>
         )}
@@ -418,6 +479,7 @@ function App() {
               onUpdateBookProgress={handleUpdateBookProgress}
               onUpdateBookStatus={handleUpdateBookStatus}
               onUpdateBookRating={handleUpdateBookRating}
+              onDeleteBook={handleDeleteBook}
             />
           </PageTransition>
         )}
