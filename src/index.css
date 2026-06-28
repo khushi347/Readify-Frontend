@@ -148,3 +148,13 @@ button, input, textarea, select {
   background-color: var(--accent-gold-light);
   color: var(--text-primary);
 }
+
+/* Mobile responsive layout overrides for screens below 768px */
+@media (max-width: 768px) {
+  html,
+  body,
+  #root {
+    overflow-x: hidden !important;
+  }
+}
+

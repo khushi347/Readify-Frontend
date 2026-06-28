@@ -47,3 +47,21 @@
     transform: translateY(0);
   }
 }
+
+/* Mobile responsive adjustments for screens below 768px */
+@media (max-width: 768px) {
+  .page-sweep-overlay {
+    left: -5vw !important;
+    transform: scale(0.4) translateX(-100%) skewX(-10deg) !important;
+    transform-origin: left center !important;
+    opacity: 0.12 !important;
+    pointer-events: none !important;
+    z-index: 1 !important;
+  }
+
+  .page-content-wrapper {
+    position: relative;
+    z-index: 2;
+  }
+}
+
