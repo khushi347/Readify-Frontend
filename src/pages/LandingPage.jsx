@@ -230,8 +230,8 @@ const LandingPage = ({ onEnterApp }) => {
             <div className="book-stage" ref={bookWrapperRef}>
               <div className="landing-story-book">
                 <Book3D 
-                  title="Selected Works" 
-                  author="A. G. Antigravity" 
+                  title="Days at the Morisaki Bookshop" 
+                  author="Satoshi Yagisawa" 
                   coverColor="linear-gradient(135deg, #9C4B33 0%, #5E2618 100%)"
                   progress={65}
                   showBookmark={true}
