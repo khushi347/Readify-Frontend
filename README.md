@@ -1,16 +1,95 @@
-# React + Vite
+# 📚 Readify
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+A modern book-tracking application built with **React** that helps readers discover books, organize their personal library, track reading progress, and save personal reflections.
 
-Currently, two official plugins are available:
+## ✨ Preview
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+<img width="1918" height="911" alt="Screenshot 2026-06-28 114055" src="https://github.com/user-attachments/assets/5a7777c4-300e-4ffb-94b0-d25b50106793" />
 
-## React Compiler
+---
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## 🚀 Features
 
-## Expanding the Oxlint configuration
+* 🔍 Search books using the Google Books API
+* 📚 Save books to your personal library
+* 📖 Track reading status
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+  * Want to Read
+  * Currently Reading
+  * Read
+* ⭐ Rate books
+* ✍️ Write and manage reading reflections
+* 🔐 Secure authentication
+* 📱 Responsive design for desktop and mobile
+
+---
+
+## 🛠️ Built With
+
+* React
+* Vite
+* Tailwind CSS
+* React Router
+* Axios
+* Context API
+
+---
+
+## ⚙️ Getting Started
+
+### Clone the repository
+
+```bash
+git clone https://github.com/your-username/readify-frontend.git
+cd readify-frontend
+```
+
+### Install dependencies
+
+```bash
+npm install
+```
+
+### Create a `.env` file
+
+```env
+VITE_API_URL=http://localhost:5000/api
+```
+
+### Start the development server
+
+```bash
+npm run dev
+```
+
+The app will be available at:
+
+```text
+http://localhost:5173
+```
+
+---
+
+## 🔗 Related Links
+
+**Live Demo:** https://readify-frontend-phi.vercel.app/
+
+**Backend Repository:** https://github.com/khushi347/Readify
+
+---
+
+## 💡 Future Improvements
+
+* Dark mode
+* Reading goals & statistics
+* Book recommendations
+* Social sharing
+* Reading streaks
+
+---
+
+## 👩‍💻 Author
+
+**Khushi Sharma**
+
+If you liked this project, consider giving it a ⭐.
